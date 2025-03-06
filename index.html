@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>portfolio</title>
+    <link rel="stylesheet" href="css/finish.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+    <script src="lib/jquery-3.7.1.min.js"></script>
+    <script src="lib/jquery-ui.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <script src="libs/gsap/3.12.3/gsap.min.js"></script>
+    <script src="libs/gsap/3.12.5/CustomEase.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.155.0/three.min.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            gsap.registerPlugin(CustomEase);
+            CustomEase.create(
+                "hop",
+                "M0,0 C0.29,0 0.348,0.05 0.422,0.134 0.494,0.217 0.484,0.355 0.5,0.5 0.518,0.662 0.515,0.793 0.596,0.876 0.701,0.983 0.72,0.987 1,1 "
+            );
+            function splitTextIntoSpans(selector) {
+                let elements = document.querySelectorAll(selector);
+                elements.forEach((element) => {
+                    let text = element.innerText;
+                    let splitText = text
+                        .split("")
+                        .map(function (char) {
+                            return `<span>${char === "" ? "&nbsp;&nbsp;" : char}</span>`
+                        })
+                        .join("");
+                    element.innerHTML = splitText;
+                });
+            }
+            //   splitTextIntoSpans(".header h1");
+            function animateCounter() {
+                const counterElement = document.querySelector(".counter p");
+                let currentValue = 0;
+                const updateInterval = 300;
+                const maxDuration = 2000;
+                const endValue = 100;
+                const startTime = Date.now();
+
+                function updateCounter() {
+                    const elapsedTime = Date.now() - startTime;
+                    if (elapsedTime < maxDuration) {
+                        currentValue = Math.min(
+                            currentValue + Math.floor(Math.random() * 30) + 5,
+                            endValue
+                        );
+                        counterElement.textContent = currentValue;
+                        setTimeout(updateCounter, updateInterval);
+                    } else {
+                        counterElement.textContent = currentValue;
+                        setTimeout(() => {
+                            gsap.to(counterElement, {
+                                y: -20,
+                                duration: 1,
+                                ease: "power3.inOut",
+                                onStart: () => {
+                                    revealLandingPage();
+                                },
+                            });
+                        }, -500);
+                    }
+                }
+
+                updateCounter();
+            }
+
+            gsap.to(".counter p", {
+                y: 0,
+                duration: 1,
+                ease: "power3.out",
+                delay: 1,
+                onComplete: animateCounter,
+            });
+
+            function revealLandingPage() {
+                gsap.to(".hero", {
+                    clipPath: "polygon(0% 100%, 100% 100%, 100% 0%, 0% 0%)",
+                    duration: 2,
+                    ease: "hop",
+                    onStart: () => {
+                        gsap.to(".hero", {
+                            transform: "translate(-50%, -50%) scale(1)",
+                            duration: 2.25,
+                            ease: "power3.inOut",
+                            delay: 0.25,
+                        });
+
+
+                    },
+                });
+            }
+        });
+        $(function () {
+
+
+            //setinterval 반복적 settimeout 시간뒤사라짐
+            setTimeout(function () {
+                $('.loading').fadeOut();
+                $('.body.active').removeClass('active')
+            }, 5000);
+
+        });
+        // loading
+        window.onload = () => {
+
+            const textContainer = document.getElementById("textContainer");
+            let easeFactor = 0.02;
+            let scene, camera, renderer, planeMesh;
+            let mousePosition = { x: 0.5, y: 0.5 };
+            let targetMousePosition = { x: 0.5, y: 0.5 };
+            let prevPosition = { x: 0.5, y: 0.5 };
+
+            const vertexShader = `
+varying vec2 vUv;
+void main() {
+vUv = uv;
+gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+            const fragmentShader = `
+varying vec2 vUv;
+uniform sampler2D u_texture;
+uniform vec2 u_mouse;
+uniform vec2 u_prevMouse;
+
+void main() {
+vec2 gridUV = floor(vUv * vec2(40.0, 40.0)) / vec2(40.0, 40.0);
+vec2 centerOfPixel = gridUV + vec2(1.0/40.0, 1.0/40.0);
+
+vec2 mouseDirection = u_mouse - u_prevMouse;
+
+vec2 pixelToMouseDirection = centerOfPixel - u_mouse;
+float pixelDistanceToMouse = length(pixelToMouseDirection);
+float strength = smoothstep(0.3, 0.0, pixelDistanceToMouse);
+
+vec2 uvOffset = strength * -mouseDirection * 0.3;
+vec2 uv = vUv - uvOffset;
+
+vec4 color = texture2D(u_texture, uv);
+gl_FragColor = color;
+}
+`;
+
+            function createTextTexture(text, font, size, color, fontWeight = "100") {
+                const canvas = document.createElement("canvas");
+                const ctx = canvas.getContext("2d");
+
+                const canvasWidth = window.innerWidth * 2;
+                const canvasHeight = window.innerHeight * 2;
+
+                canvas.width = canvasWidth;
+                canvas.height = canvasHeight;
+
+                ctx.fillStyle = color || "#ffffff";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // const fontSize = size || Math.floor(canvasWidth * 2);
+                const fontSize = Math.round(1000 * window.devicePixelRatio);
+                ctx.fillStyle = "#00000015";
+                ctx.font = `${fontWeight} ${fontSize}px "${font || "Anton"}"`;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = "high";
+
+                const textMetrics = ctx.measureText(text);
+                const textWidth = textMetrics.width;
+
+                const scaleFactor = Math.min(1, (canvasWidth * 1) / textWidth);
+                const aspectCorrection = canvasWidth / canvasHeight;
+
+                ctx.setTransform(
+                    scaleFactor,
+                    0,
+                    0,
+                    scaleFactor / aspectCorrection,
+                    canvasWidth / 2,
+                    canvasHeight / 2
+                );
+
+                ctx.strokeStyle = "#00000000";
+                ctx.lineWidth = fontSize * 0.005;
+                for (let i = 0; i < 3; i++) {
+                    ctx.strokeText(text, 0, 0);
+                }
+
+                ctx.fillText(text, 0, 0);
+
+                return new THREE.CanvasTexture(canvas);
+            }
+
+            function initializeScene(texture) {
+                scene = new THREE.Scene();
+
+                const aspectRatio = window.innerWidth / window.innerHeight;
+                camera = new THREE.OrthographicCamera(
+                    -1,
+                    1,
+                    1 / aspectRatio,
+                    -1 / aspectRatio,
+                    0.1,
+                    1000
+                );
+                camera.position.z = 1;
+
+                let shaderUniforms = {
+                    u_mouse: { type: "v2", value: new THREE.Vector2() },
+                    u_prevMouse: { type: "v2", value: new THREE.Vector2() },
+                    u_texture: { type: "t", value: texture },
+                };
+
+                planeMesh = new THREE.Mesh(
+                    new THREE.PlaneGeometry(2, 2),
+                    new THREE.ShaderMaterial({
+                        uniforms: shaderUniforms,
+                        vertexShader,
+                        fragmentShader,
+                    })
+                );
+
+                scene.add(planeMesh);
+
+                renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setClearColor(0xffffff, 0);
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(window.devicePixelRatio);
+
+                textContainer.appendChild(renderer.domElement);
+            }
+
+            function reloadTexture() {
+                const newTexture = createTextTexture(
+                    " Sunyi ",
+                    "Anton",
+                    null,
+                    "#ffffff00",
+                    "100"
+                );
+
+                planeMesh.material.uniforms.u_texture.value = newTexture;
+            }
+
+            initializeScene(
+                createTextTexture(" Sunyi ", "Anton", null, "#ffffff00", "100")
+            );
+
+            function animateScene() {
+                requestAnimationFrame(animateScene);
+
+                mousePosition.x += (targetMousePosition.x - mousePosition.x) * easeFactor;
+                mousePosition.y += (targetMousePosition.y - mousePosition.y) * easeFactor;
+
+                planeMesh.material.uniforms.u_mouse.value.set(
+                    mousePosition.x,
+                    1.0 - mousePosition.y
+                );
+
+                planeMesh.material.uniforms.u_prevMouse.value.set(
+                    prevPosition.x,
+                    1.0 - prevPosition.y
+                );
+
+                renderer.render(scene, camera);
+            }
+
+            animateScene();
+
+            textContainer.addEventListener("mousemove", handleMouseMove);
+            textContainer.addEventListener("mouseenter", handleMouseEnter);
+            textContainer.addEventListener("mouseleave", handleMouseLeave);
+
+            function handleMouseMove(event) {
+                easeFactor = 0.04;
+                let rect = textContainer.getBoundingClientRect();
+                prevPosition = { ...targetMousePosition };
+
+                targetMousePosition.x = (event.clientX - rect.left) / rect.width;
+                targetMousePosition.y = (event.clientY - rect.top) / rect.height;
+            }
+
+            function handleMouseEnter(event) {
+                easeFactor = 0.02;
+                let rect = textContainer.getBoundingClientRect();
+
+                mousePosition.x = targetMousePosition.x = (event.clientX - rect.left) / rect.width;
+                mousePosition.y = targetMousePosition.y = (event.clientY - rect.top) / rect.height;
+            }
+
+            function handleMouseLeave() {
+                easeFactor = 0.02;
+                targetMousePosition = { ...prevPosition };
+            }
+
+            window.addEventListener("resize", onWindowResize, false);
+
+            function onWindowResize() {
+                const aspectRatio = window.innerWidth / window.innerHeight;
+                camera.left = -1;
+                camera.right = 1;
+                camera.top = 1 / aspectRatio;
+                camera.bottom = -1 / aspectRatio;
+                camera.updateProjectionMatrix();
+
+                renderer.setSize(window.innerWidth, window.innerHeight);
+
+                reloadTexture();
+            }
+
+
+
+        }
+    </script>
+</head>
+
+<body class="body active">
+    <div class="loading">
+        <div class="container">
+            <div class="counter">
+                <p>0</p>
+            </div><!-- counter -->
+        </div>
+    </div><!-- loading -->
+
+    <div id="wrap">
+
+        <header class="header">
+            <h1>
+                <a href="#">
+                    <img src="img/sign.svg" alt="">
+                </a>
+            </h1>
+        </header>
+        <div id="textContainer">
+            <div class="signdeco">
+                <img src="img/logo.png" alt="">
+                <img src="img/logo2.png" alt="">
+            </div><!-- signdeco -->
+
+
+            <div class="main1">
+                <span>I'm Sunyi</span>
+                <span>Wellcom to my Hompage</span>
+                <ul class="portfolio">
+                    <li>P</li>
+                    <li></li>
+                    <li>ortfolio</li>
+                </ul>
+                <span>from 2018 to 2025 </span>
+            </div><!-- main1 -->
+            <div class="scrolldown">
+                <div class="scrollwrap">
+                    <div class="scroll">
+                        <span>Scroll Down</span>
+                    </div><!-- scroll -->
+                </div><!-- scrollwrap -->
+            </div><!-- scrolldown -->
+        </div><!-- textContainer -->
+        <div id="mousescroll">
+            <div class="section_flex">
+
+                <ul class="sidemenu">
+                    <li class="active">
+                        <span><a href="#section1">Intro</a></span>
+                        <img src="img/btn1.svg" alt="">
+                    </li>
+                    <li>
+                        <span><a href="#section2">Website</a><a>[13]</a></span>
+                        <img src="img/btn1.svg" alt="">
+                    </li>
+                    <li>
+                        <span><a href="#section3">Graphic Design</a><a>[08]</a></span>
+                        <img src="img/btn1.svg" alt="">
+                    </li>
+                    <li>
+                        <span><a href="#section4">Contact</a></span>
+                        <img src="img/btn1.svg" alt="">
+                    </li>
+                </ul><!-- sidemenu -->
+
+                <div class="section_wrap">
+                    <section id="section1" class="section01 active">
+                        <div class="inner">
+                            <h2>Intro</h2>
+                            <ul class="intro">
+                                <li>
+                                    <img src="img/introimg.png" alt="">
+                                </li>
+                                <li class="content1">
+                                    <span>이선이</span>
+                                    <span>1994.12.26</span>
+                                    <span>01055667586</span>
+                                    <span>usu1226@naver.com</span>
+                                    <span><a href="pdf/resume.pdf" target="_blank">Resume <img class="arrow"
+                                                src="img/arrow.svg" alt=""></a></span>
+                                </li>
+                                <li>
+                                    <ul class="content2">
+                                        <li>Education</li>
+                                        <li>2013.02 문수고등학교 졸업</li>
+                                        <li>2016.02 연암공대 제품디자인과 졸업</li>
+                                        <li>2018.08 UI/UX 과정, 자바 , 안드로이드스튜디오 프로그램 수료</li>
+                                        <li>2025.01 UI/UX 과정, 코딩 프로그램 수료</li>
+                                    </ul>
+                                    <ul class="content2">
+                                        <li>Career</li>
+                                        <li>
+                                            2020.05~2021.05 스튜디오마체테
+                                            <br />「 업무 : 앱 ux ui 디자인 및 제안서 디자인 」
+                                        </li>
+                                        <li>
+                                            2022.01~2023.02 오렌지보드
+                                            <br />「 업무 : 앱 , 반응형웹 디자인 및 각종디자인 」
+                                        </li>
+                                        <li>
+                                            2023.09~2023.09 팀에브리웨어
+                                            <br /> 「 업무 : 반응형웹 디자인 및 콘텐츠 디자인 」
+                                        </li>
+
+                                    </ul>
+                                    <ul class="content2">
+                                        <li>Skill</li>
+                                        <li class="skill">
+                                            <img src="img/skill1.png" alt="">
+                                            <img src="img/skill2.png" alt="">
+                                            <img src="img/skill3.png" alt="">
+                                            <img src="img/skill4.png" alt="">
+                                            <img src="img/skill5.png" alt="">
+                                            <img src="img/skill6.png" alt="">
+                                            <img src="img/skill7.png" alt="">
+                                            <img src="img/skill8.png" alt="">
+                                            <img src="img/skill9.png" alt="">
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div><!-- inner -->
+                    </section><!-- section01 -->
+                    <section id="section2" class="section02">
+                        <div class="inner">
+                            <h2>Website</h2>
+                            <div class="tabs">
+                                <ul class="tab_nav">
+                                    <li><a href="#tab1">Website</a></li>
+                                    <li><a href="#tab2">Company Work</a></li>
+
+                                </ul>
+
+                                <div class="tab" id="tab1">
+
+                                    <div class="sub_tab" id="sub_tab1">
+                                        <div class="item_wrap">
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="https://sunyi380958.github.io/Aesop/"
+                                                    target="_blank">
+                                                        <img src="img/easop.png" alt="">
+                                                    </a>
+                                                    <span>01</span>
+                                                    <span>Renual</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>이솝</h3>
+                                                    <p>HTML, CSS, Jquery, Javascript</p>
+                                                    <p>디자인 , 퍼블리싱</p>
+                                                    <ul class="item_button">
+                                                        <li><a href="https://sunyi380958.github.io/Aesop/"
+                                                                target="_blank">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="pdf/easopprocess.pdf" target="_blank">
+                                                                <span>process</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="https://www.figma.com/design/2KoMARuLHHC2rLrkNHFvWD?node-id=66-3077#1158208286"
+                                                                target="_blank">
+                                                                <span>figma</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="https://sunyi380958.github.io/lalasweet/"
+                                                    target="_blank">
+                                                        <img src="img/ex2.png" alt="">
+                                                    </a>
+                                                    <span>02</span>
+                                                    <span>Renual</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>라라스윗</h3>
+                                                    <p>HTML, CSS, Jquery, Javascript</p>
+                                                    <p>디자인 , 퍼블리싱</p>
+                                                    <ul class="item_button">
+                                                        <li><a href="https://sunyi380958.github.io/lalasweet/"
+                                                                target="_blank">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="pdf/lalasweetprocess.pdf" target="_blank">
+                                                                <span>process</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="https://www.figma.com/design/2KoMARuLHHC2rLrkNHFvWD?node-id=66-1749#1158208868"
+                                                                target="_blank">
+                                                                <span>figma</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="https://sunyi380958.github.io/baexang/"
+                                                    target="_blank">
+                                                        <img src="img/baexang.png" alt="">
+                                                    </a>
+                                                    <span>03</span>
+                                                    <span>Imitation</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>백상갤러리모작</h3>
+                                                    <p>HTML, CSS</p>
+                                                    <p>퍼블리싱</p>
+                                                    <ul class="item_button">
+                                                        <li><a href="https://sunyi380958.github.io/baexang/"
+                                                                target="_blank">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="https://sunyi380958.github.io/Lejour/"
+                                                    target="_blank">
+                                                        <img src="img/lejour.png" alt="">
+                                                    </a>
+                                                    <span>04</span>
+                                                    <span>Imitation</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>르쥬르모작</h3>
+                                                    <p>HTML, CSS, Jquery, Javascript</p>
+                                                    <p>퍼블리싱</p>
+                                                    <ul class="item_button">
+                                                        <li><a href="https://sunyi380958.github.io/Lejour/"
+                                                                target="_blank">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                        </div><!-- item_wrap -->
+                                    </div><!-- #subtab1 -->
+                                    <div class="sub_tab" id="sub_tab2">
+                                        <div class="item_wrap">
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="https://www.figma.com/design/2KoMARuLHHC2rLrkNHFvWD?node-id=73-160#1158209025"
+                                                    target="_blank">
+                                                        <img src="img/health.png" alt="">
+                                                    </a>
+                                                    <span>05</span>
+                                                    <span style="display: none;">Renual</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>헬스스캔</h3>
+                                                    <p>figma</p>
+                                                    <p>디자인</p>
+                                                    <ul class="item_button">
+                                                        <li style="display: none;"><a href="#">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="pdf/healthscanprocess.pdf" target="_blank">
+                                                                <span>process</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="https://www.figma.com/design/2KoMARuLHHC2rLrkNHFvWD?node-id=73-160#1158209025"
+                                                                target="_blank">
+                                                                <span>figma</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="https://www.figma.com/design/2KoMARuLHHC2rLrkNHFvWD?node-id=76-52#1158208518"
+                                                    target="_blank">
+                                                        <img src="img/bluclinic.png" alt="">
+                                                    </a>
+                                                    <span>06</span>
+                                                    <span style="display: none;">Renual</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>블루클리닉</h3>
+                                                    <p>figma</p>
+                                                    <p>디자인</p>
+                                                    <ul class="item_button">
+                                                        <li style="display: none;"><a href="#">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="pdf/blueclinicprocess.pdf" target="_blank">
+                                                                <span>process</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="https://www.figma.com/design/2KoMARuLHHC2rLrkNHFvWD?node-id=76-52#1158208518"
+                                                                target="_blank">
+                                                                <span>figma</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="https://www.figma.com/design/2KoMARuLHHC2rLrkNHFvWD?node-id=66-5444#1158209121"
+                                                    target="_blank">
+                                                        <img src="img/popmart.png" alt="">
+                                                    </a>
+                                                    <span>07</span>
+                                                    <span>Renual</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>팝마트</h3>
+                                                    <p>figma</p>
+                                                    <p>디자인</p>
+                                                    <ul class="item_button">
+                                                        <li style="display: none;"><a href="#">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+                                                        <li style="display: none;"><a href="#">
+                                                                <span>process</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="https://www.figma.com/design/2KoMARuLHHC2rLrkNHFvWD?node-id=66-5444#1158209121"
+                                                                target="_blank">
+                                                                <span>figma</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="https://sunyi380958.github.io/Dancingcup/"
+                                                    target="_blank">
+                                                        <img src="img/dancing.png" alt="">
+                                                    </a>
+                                                    <span>08</span>
+                                                    <span>Renual</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>댄싱컵</h3>
+                                                    <p>photoshop,HTML, CSS</p>
+                                                    <p>디자인,퍼블리싱</p>
+                                                    <ul class="item_button">
+                                                        <li><a href="https://sunyi380958.github.io/Dancingcup/"
+                                                                target="_blank">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="pdf/dancingcupprocess.pdf" target="_blank">
+                                                                <span>process</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="https://www.figma.com/design/2KoMARuLHHC2rLrkNHFvWD?node-id=82-73#1161629111"
+                                                                target="_blank">
+                                                                <span>figma</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                        </div><!-- item_wrap -->
+                                    </div><!-- #sub_tab2 -->
+                                    <div class="sub_tab" id="sub_tab3">
+                                        <div class="item_wrap">
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="https://sunyi380958.github.io/Visitbusan/"
+                                                    target="_blank">
+                                                        <img src="img/visit.png" alt="">
+                                                    </a>
+                                                    <span>09</span>
+                                                    <span>Imitation</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>VisitBusan</h3>
+                                                    <p>HTML, CSS</p>
+                                                    <p>퍼블리싱</p>
+                                                    <ul class="item_button">
+                                                        <li><a href="https://sunyi380958.github.io/Visitbusan/"
+                                                                target="_blank">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+                                                        <li style="display: none;"><a href="#">
+                                                                <span>process</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                        <li style="display: none;"><a href="#">
+                                                                <span>figma</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="https://www.figma.com/design/2KoMARuLHHC2rLrkNHFvWD?node-id=66-5822#1158209279"
+                                                    target="_blank">
+                                                        <img src="img/lush.png" alt="">
+                                                    </a>
+                                                    <span>10</span>
+                                                    <span>Renual</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>러쉬</h3>
+                                                    <p>figma</p>
+                                                    <p>디자인</p>
+                                                    <ul class="item_button">
+                                                        <li style="display: none;"><a href="#">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+                                                        <li style="display: none;"><a href="#">
+                                                                <span>process</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="https://www.figma.com/design/2KoMARuLHHC2rLrkNHFvWD?node-id=66-5822#1158209279"
+                                                                target="_blank">
+                                                                <span>figma</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="#">
+                                                        <img src="img/ex.jpg" alt="">
+                                                    </a>
+                                                    <span>11</span>
+                                                    <span>Renual</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>준비중</h3>
+                                                    <p>HTML, CSS, Jquery, Javascript</p>
+                                                    <p>디자인 , 퍼브리싱</p>
+                                                    <ul class="item_button">
+                                                        <li><a href="#">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="#">
+                                                                <span>process</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="#">
+                                                                <span>figma</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="#">
+                                                        <img src="img/ex.jpg" alt="">
+                                                    </a>
+                                                    <span>12</span>
+                                                    <span>Renual</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>준비중</h3>
+                                                    <p>HTML, CSS, Jquery, Javascript</p>
+                                                    <p>디자인 , 퍼브리싱</p>
+                                                    <ul class="item_button">
+                                                        <li><a href="#">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="#">
+                                                                <span>process</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="#">
+                                                                <span>figma</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                        </div><!-- item_wrap -->
+                                    </div><!-- subtab3 -->
+                                    <ul class="sub_tab_nav">
+                                        <li><a href="#sub_tab1">1</a></li>
+                                        <li><a href="#sub_tab2">2</a></li>
+                                        <li><a href="#sub_tab3">3</a></li>
+                                    </ul>
+                                </div><!-- tab1 -->
+                                <div class="tab" id="tab2">
+
+                                    <div class="sub_tab" id="sub_tab4">
+                                        <div class="item_wrap">
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="https://www.figma.com/design/Q9E5T5sByvFCuIUkklyhsK?node-id=332-2#1160145605"
+                                                    target="_blank">
+                                                        <img src="img/teamevery.png" alt="">
+                                                    </a>
+                                                    <span>01</span>
+                                                    <span style="display: none;">Renual</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>팀에브리웨어</h3>
+                                                    <p>figma</p>
+                                                    <p>디자인</p>
+                                                    <ul class="item_button">
+                                                        <li style="display: none;"><a href="#">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+                                                        <li style="display: none;"><a href="#">
+                                                                <span>process</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="https://www.figma.com/design/Q9E5T5sByvFCuIUkklyhsK?node-id=332-2#1160145605"
+                                                                target="_blank">
+                                                                <span>figma</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="https://www.figma.com/design/Q9E5T5sByvFCuIUkklyhsK?node-id=328-2337#1160145457"
+                                                    target="_blank">
+                                                        <img src="img/elound.png" alt="">
+                                                    </a>
+                                                    <span>02</span>
+                                                    <span style="display: none;">Renual</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>이라운드</h3>
+                                                    <p>figma</p>
+                                                    <p>디자인</p>
+                                                    <ul class="item_button">
+                                                        <li style="display: none;"><a href="#">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+                                                        <li style="display: none;"><a href="#">
+                                                                <span>process</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="https://www.figma.com/design/Q9E5T5sByvFCuIUkklyhsK?node-id=328-2337#1160145457"
+                                                                target="_blank">
+                                                                <span>figma</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="https://www.figma.com/design/Q9E5T5sByvFCuIUkklyhsK?node-id=328-2366#1160145740"
+                                                    target="_blank">
+                                                        <img src="img/orange.png" alt="">
+                                                    </a>
+                                                    <span>03</span>
+                                                    <span style="display: none;">Renual</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>오렌지보드</h3>
+                                                    <p>figma</p>
+                                                    <p>디자인</p>
+                                                    <ul class="item_button">
+                                                        <li style="display: none;"><a href="#">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+                                                        <li style="display: none;"><a href="#">
+                                                                <span>process</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="https://www.figma.com/design/Q9E5T5sByvFCuIUkklyhsK?node-id=328-2366#1160145740"
+                                                                target="_blank">
+                                                                <span>figma</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="https://www.figma.com/design/Q9E5T5sByvFCuIUkklyhsK?node-id=333-32#1160145852"
+                                                    target="_blank">
+                                                        <img src="img/ex.jpg" alt="">
+                                                    </a>
+                                                    <span>04</span>
+                                                    <span style="display: none;">Renual</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>스튜디오마체테</h3>
+                                                    <p>xd</p>
+                                                    <p>디자인</p>
+                                                    <ul class="item_button">
+                                                        <li style="display: none;"><a href="#">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="https://www.figma.com/design/Q9E5T5sByvFCuIUkklyhsK?node-id=333-32#1160145852"
+                                                                target="_blank">
+                                                                <span>process</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                        <li style="display: none;"><a href="#">
+                                                                <span>figma</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                        </div><!-- item_wrap -->
+                                    </div>
+                                    <div class="sub_tab" id="sub_tab5">
+                                        <div class="item_wrap">
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="#">
+                                                        <img src="img/ex.jpg" alt="">
+                                                    </a>
+                                                    <span>05</span>
+                                                    <span>Renual</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>준비중</h3>
+                                                    <p>HTML, CSS, Jquery, Javascript</p>
+                                                    <p>디자인 , 퍼브리싱</p>
+                                                    <ul class="item_button">
+                                                        <li><a href="#">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="#">
+                                                                <span>process</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="#">
+                                                                <span>figma</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="#">
+                                                        <img src="img/ex.jpg" alt="">
+                                                    </a>
+                                                    <span>06</span>
+                                                    <span>Renual</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>준비중</h3>
+                                                    <p>HTML, CSS, Jquery, Javascript</p>
+                                                    <p>디자인 , 퍼브리싱</p>
+                                                    <ul class="item_button">
+                                                        <li><a href="#">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="#">
+                                                                <span>process</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="#">
+                                                                <span>figma</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="#">
+                                                        <img src="img/ex.jpg" alt="">
+                                                    </a>
+                                                    <span>07</span>
+                                                    <span>Renual</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>준비중</h3>
+                                                    <p>HTML, CSS, Jquery, Javascript</p>
+                                                    <p>디자인 , 퍼브리싱</p>
+                                                    <ul class="item_button">
+                                                        <li><a href="#">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="#">
+                                                                <span>process</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="#">
+                                                                <span>figma</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                            <div class="item">
+                                                <div class="image">
+                                                    <a href="#">
+                                                        <img src="img/ex.jpg" alt="">
+                                                    </a>
+                                                    <span>08</span>
+                                                    <span>Renual</span>
+                                                </div><!-- image -->
+                                                <div class="text">
+                                                    <h3>준비중</h3>
+                                                    <p>HTML, CSS, Jquery, Javascript</p>
+                                                    <p>디자인 , 퍼브리싱</p>
+                                                    <ul class="item_button">
+                                                        <li><a href="#">
+                                                                <span>web</span>
+                                                                <img class="arrow" src="img/arrow2.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="#">
+                                                                <span>process</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                        <li><a href="#">
+                                                                <span>figma</span>
+                                                                <img class="arrow" src="img/arrow.svg" alt="">
+                                                            </a></li>
+                                                    </ul><!-- item_button -->
+                                                </div><!-- text -->
+                                            </div><!-- item -->
+                                        </div><!-- item_wrap -->
+                                    </div><!-- #subtab5 -->
+                                    <ul class="sub_tab_nav">
+                                        <li><a href="#sub_tab4">1</a></li>
+                                        <li><a href="#sub_tab5">2</a></li>
+                                    </ul>
+                                </div><!-- #tab2 -->
+                            </div><!-- tabs -->
+                        </div><!-- inner -->
+                    </section><!-- section02 -->
+
+
+                    <section id="section3" class="section03">
+                        <div class="inner">
+
+                            <h2>Grapic Design</h2>
+
+                            <ul class="menu">
+                                <li class="on">Grapic design</li>
+                                <li>Company Work</li>
+                            </ul>
+                            <div class="item_wrap on">
+                                <div class="item secitem">
+
+                                    <div class="image"><img src="img/character.jpg" alt=""></div><!-- image -->
+
+                                    <h4>MZ냥</h4>
+
+                                </div><!-- item -->
+                                <div class="modal">
+                                    <div class="modal-content">
+                                        <span class="close">&times;</span>
+                                        <img style="width:50%;" src="img/character.jpg" alt="">
+                                    </div>
+                                </div>
+                                <div class="item secitem">
+
+                                    <div class="image"><img src="img/poster.png" alt=""></div><!-- image -->
+                                    <h4>MZ냥포스터</h4>
+
+                                </div><!-- item -->
+                                <div class="modal">
+                                    <div class="modal-content">
+                                        <span class="close">&times;</span>
+                                        <img style="width: 40%;" src="img/poster.png" alt="">
+                                    </div>
+                                </div>
+                                <div class="item secitem">
+
+                                    <div class="image"><img src="img/lody.png" alt=""></div><!-- image -->
+                                    <h4>밸런스캣</h4>
+
+                                </div><!-- item -->
+                                <div class="modal">
+                                    <div class="modal-content">
+                                        <span class="close">&times;</span>
+                                        <img style="width: 80%;" src="img/lody1.png" alt="">
+                                    </div>
+                                </div>
+                                <div class="item secitem">
+
+                                    <div class="image"><img src="img/package.png" alt=""></div><!-- image -->
+                                    <h4>밸런스캣도면</h4>
+
+                                </div><!-- item -->
+                                <div class="modal">
+                                    <div class="modal-content">
+                                        <span class="close">&times;</span>
+                                        <img style="width: 80%;" src="img/lody2.jpg" alt="">
+                                    </div>
+                                </div>
+                                <div class="item secitem">
+
+                                    <div class="image"><img src="img/balancecat.png" alt=""></div><!-- image -->
+                                    <h4>밸런스캣 광고</h4>
+
+                                </div><!-- item -->
+                                <div class="modal">
+                                    <div class="modal-content">
+                                        <span class="close">&times;</span>
+                                        <img style="width: 50%;" src="img/balancecat.jpg" alt="">
+                                    </div>
+                                </div>
+                                <div class="item secitem">
+
+                                    <div class="image"><img src="img/info.jpg" alt=""></div><!-- image -->
+                                    <h4>2014인포그래픽</h4>
+
+                                </div><!-- item -->
+                                <div class="modal">
+                                    <div class="modal-content">
+                                        <span class="close">&times;</span>
+                                        <img style="width: 60%;" src="img/info.jpg" alt="">
+                                    </div>
+                                </div>
+                                <div class="item secitem">
+
+                                    <div class="image"><img src="img/ex.jpg" alt=""></div><!-- image -->
+                                    <h4>준비중</h4>
+
+                                </div><!-- item -->
+                                <div class="modal">
+                                    <div class="modal-content">
+                                        <span class="close">&times;</span>
+                                        <p>준비중입니다!</p>
+                                    </div>
+                                </div>
+                                <div class="item secitem">
+
+                                    <div class="image"><img src="img/ex.jpg" alt=""></div><!-- image -->
+                                    <h4>준비중</h4>
+
+                                </div><!-- item -->
+                                <div class="modal">
+                                    <div class="modal-content">
+                                        <span class="close">&times;</span>
+                                        <p>준비중입니다!</p>
+                                    </div>
+                                </div>
+                            </div><!-- item_wrap -->
+                            <div class="item_wrap">
+                                <div class="item secitem">
+
+                                    <div class="image"><img src="img/blog1.png" alt=""></div><!-- image -->
+
+                                    <h4>이제조카페배너</h4>
+
+                                </div><!-- item -->
+                                <div class="modal">
+                                    <div class="modal-content">
+                                        <span class="close">&times;</span>
+                                        <img style="width: 30%;" src="img/blog1.png" alt="">
+                                    </div>
+                                </div>
+                                <div class="item secitem">
+
+                                    <div class="image"><img src="img/data1.png" alt=""></div><!-- image -->
+                                    <h4>데이터바우처공지문</h4>
+
+                                </div><!-- item -->
+                                <div class="modal">
+                                    <div class="modal-content">
+                                        <span class="close">&times;</span>
+                                        <img style="width: 50%;" src="img/data.png" alt="">
+                                    </div>
+                                </div>
+                                <div class="item secitem">
+
+                                    <div class="image"><img src="img/wellmade.png" alt=""></div><!-- image -->
+                                    <h4>제조공장상세페이지</h4>
+
+                                </div><!-- item -->
+                                <div class="modal">
+                                    <div class="modal-content">
+                                        <span class="close">&times;</span>
+                                        <img style="width: 10%;" src="img/wellmade.png" alt="">
+                                    </div>
+                                </div>
+                                <div class="item secitem">
+
+                                    <div class="image"><img src="img/youtube.png" alt=""></div><!-- image -->
+                                    <h4>개인유튜브배너</h4>
+
+                                </div><!-- item -->
+                                <div class="modal">
+                                    <div class="modal-content">
+                                        <span class="close">&times;</span>
+                                        <img style="width: 60%;" src="img/youtube.png" alt="">
+                                    </div>
+                                </div>
+                                <div class="item secitem">
+
+                                    <div class="image"><img src="img/blog2.png" alt=""></div><!-- image -->
+                                    <h4>제조블로그배너</h4>
+
+                                </div><!-- item -->
+                                <div class="modal">
+                                    <div class="modal-content">
+                                        <span class="close">&times;</span>
+                                        <img style="width: 60%;" src="img/blog2.png" alt="">
+                                    </div>
+                                </div>
+                                <div class="item secitem">
+
+                                    <div class="image"><img src="img/ex.jpg" alt=""></div><!-- image -->
+                                    <h4>준비중</h4>
+
+                                </div><!-- item -->
+                                <div class="modal">
+                                    <div class="modal-content">
+                                        <span class="close">&times;</span>
+                                        <p> 1번째 Modal</p>
+                                    </div>
+                                </div>
+                                <div class="item secitem">
+
+                                    <div class="image"><img src="img/ex.jpg" alt=""></div><!-- image -->
+                                    <h4>준비중</h4>
+
+                                </div><!-- item -->
+                                <div class="modal">
+                                    <div class="modal-content">
+                                        <span class="close">&times;</span>
+                                        <p> 1번째 Modal</p>
+                                    </div>
+                                </div>
+                                <div class="item secitem">
+
+                                    <div class="image"><img src="img/ex.jpg" alt=""></div><!-- image -->
+                                    <h4>준비중</h4>
+
+                                </div><!-- item -->
+                                <div class="modal">
+                                    <div class="modal-content">
+                                        <span class="close">&times;</span>
+                                        <p> 1번째 Modal</p>
+                                    </div>
+                                </div>
+                            </div><!-- item_wrap -->
+                        </div><!-- inner -->
+                    </section><!-- section03 -->
+                    <section id="section4" class="section04">
+                        <h2>Contact</h2>
+                        <div class="inner">
+
+                            <div class="contents4">
+
+                                <div class="main">
+                                    <div class="image">
+                                        <img class="deco" src="img/viewdeco.png" alt="">
+                                        <img src="img/computer.gif" alt="">
+                                    </div><!-- image -->
+                                    <div class="portfoliobox">
+                                        <div class="wrap">
+                                            <span class="text">Welcom to my portfolio</span>
+                                            <ul class="button">
+                                                <li>
+                                                    <a href="https://www.figma.com/design/2KoMARuLHHC2rLrkNHFvWD?node-id=94-341#1161680151"
+                                                        target="_blank">
+                                                        <span class="title">Portfolio img</span>
+                                                        <img src="img/arrow.svg" alt="">
+                                                    </a>
+
+                                                </li>
+                                                <li>
+                                                    <a href="#section1">
+                                                        <span class="title">Intro</span>
+                                                        <img src="img/arrow.svg" alt="">
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="https://www.notion.so/SUNYI-FOLIO-cc920b1359ed45c7b104092586cc9316"
+                                                        target="_blank">
+                                                        <span class="title">Notion</span>
+                                                        <img src="img/v.svg" alt="">
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div><!-- wrap -->
+                                    </div><!-- portfoliobox -->
+
+
+                                    <p class="hireme">Lee sun yi. Hire me</p>
+
+                                    <p class="phone">010-5566-7586</p>
+                                    <ul class="sns">
+                                        <li>
+                                            <a href="https://github.com/sunyi380958" target="_blank">
+                                                <span>GITHUB</span>
+                                                <img src="img/dash.svg" alt="">
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a href="pdf/resume.pdf" target="_blank">
+                                                <span>RESUME</span>
+                                                <img src="img/dash.svg" alt="">
+                                            </a>
+                                        </li>
+                                        <li style="cursor: pointer;">
+                                            <span>EMAIL</span>
+                                            <img src="img/dash.svg" alt="">
+                                        </li>
+
+                                    </ul>
+                                </div><!--main -->
+
+
+                            </div><!-- contents4 -->
+
+                        </div><!-- inner -->
+                    </section><!-- section04 -->
+                </div><!-- section wrap-->
+            </div><!-- section_flex -->
+            <footer>
+                <p>해당 페이지는 상업적 목적이 아닌 개인 포트폴리오용으로 제작되었습니다.</p>
+                <p>© 2025 Lee sunyi. All Rights Reserved.</p>
+            </footer>
+        </div><!-- mousescroll -->
+    </div><!-- id .wrap -->
+
+    <script src="js/finish.js"></script>
+</body>
+
+</html>
