@@ -1,0 +1,11 @@
+@font-face {
+    font-family: 'PP Supply Sans';
+    src: url('PPSupplySans-Regular.eot');
+    src: url('PPSupplySans-Regular.eot?#iefix') format('embedded-opentype'),
+        url('PPSupplySans-Regular.woff2') format('woff2'),
+        url('PPSupplySans-Regular.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
